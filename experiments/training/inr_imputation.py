@@ -23,15 +23,16 @@ from src.utils import (
 import warnings
 warnings.filterwarnings("ignore")
 
-@hydra.main(config_path="../config/", config_name="config.yaml")
+# @hydra.main(config_path="../config/", config_name="config.yaml")
+@hydra.main(config_path="../config/", config_name="experiment_readme.yaml")
 def main(cfg: DictConfig) -> None:
     
     # save path
     RESULTS_DIR = str(Path(__file__).parents[2]) + '/save_models/'
 
-    # data
+    # # data
     dataset_name = cfg.data.dataset_name
-    ntrain = cfg.data.ntrain
+    # ntrain = cfg.data.ntrain
     draw_ratio = cfg.data.draw_ratio
     version = cfg.data.version
 
@@ -57,6 +58,23 @@ def main(cfg: DictConfig) -> None:
     length_of_interest = cfg.data.length_of_interest
     output_dim = 1
 
+    #OVERWRITE readme
+
+    # hidden_dim=256
+    # latent_dim=128
+    # depth=5
+    # lr_inr=5e-4
+    # inner_steps=3
+    # test_inner_steps=3
+    # lr_code=0.01
+    # batch_size=64
+    # epochs=40000
+    # dataset_name='Electricity'
+    # length_of_interest=2000
+    # sample_ratio_batch=0.6
+    # version=0
+    # draw_ratio=0.10
+
 
     small_data, small_grid, permutations = fixed_subsampling_series_imputations(
                                             dataset_name, 
@@ -65,11 +83,13 @@ def main(cfg: DictConfig) -> None:
                                             setting='classic',
                                             train_or_test='train'
                                             )
-
+    #check if small grid and coords are aligning
+    print(small_data.shape, small_grid.shape, permutations.shape)
     trainset = DatasetSamples(small_data, small_grid, latent_dim, sample_ratio_batch)
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True)
     ntrain = small_data.shape[0]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print('************-------------Device :', device)
     input_dim = 1
 
     inr = ModulatedFourierFeatures(
