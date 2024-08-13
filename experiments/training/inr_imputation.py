@@ -137,6 +137,7 @@ def main(cfg: DictConfig) -> None:
         use_rel_loss = step % 10 == 0
 
         for substep, (series, modulations, coords, idx) in enumerate(train_loader):
+            start_time_forward = time.time()
             inr.train() 
             series = z_normalize(series)
             series = series.to(device)
@@ -158,6 +159,8 @@ def main(cfg: DictConfig) -> None:
 
             optimizer.zero_grad()
             outputs["loss"].backward(create_graph=False)
+            end_time_forward= time.time()
+            print('Time taken for batch :', end_time_forward - start_time_forward)
             nn.utils.clip_grad_value_(inr.parameters(), clip_value=1.0)
             optimizer.step()
             loss = outputs["loss"].cpu().detach()
