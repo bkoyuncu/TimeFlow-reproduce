@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+print(sys.path)
+print(__file__)
 sys.path.append(str(Path(__file__).parents[1]))
 sys.path.append(str(Path(__file__).parents[2]))
 
@@ -22,6 +24,7 @@ from src.utils import (
 
 import warnings
 warnings.filterwarnings("ignore")
+import time
 
 # @hydra.main(config_path="../config/", config_name="config.yaml")
 @hydra.main(config_path="../config/", config_name="experiment_readme.yaml")
@@ -127,6 +130,7 @@ def main(cfg: DictConfig) -> None:
     best_loss = np.inf
 
     for step in range(epochs):
+        start_time = time.time()
         rel_train_mse = 0
         fit_train_mae = 0
         fit_train_samples = 0
@@ -169,6 +173,8 @@ def main(cfg: DictConfig) -> None:
             print('loss :', train_samples_loss)
 
         scheduler.step(train_samples_loss)
+        end_time = time.time()
+        print('Time taken for epoch :', end_time - start_time)
 
         if train_samples_loss < best_loss:
             best_loss = train_samples_loss
