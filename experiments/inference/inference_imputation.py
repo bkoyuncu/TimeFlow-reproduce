@@ -10,6 +10,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader 
 from omegaconf import OmegaConf
 import argparse
+import wandb
+
 
 from src.metalearning.metalearning_imputation import outer_step
 from src.network import  ModulatedFourierFeatures
@@ -26,6 +28,17 @@ from src.utils import (
 
 from sklearn.metrics import mean_absolute_error as mae
 
+def flatten_dict(d, parent_key='', sep='/'):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset_name', type=str, default='Electricity')
 parser.add_argument('--epochs', type=int, default=40000)
@@ -33,7 +46,7 @@ parser.add_argument('--draw_ratio', type=float, default=0.1)
 parser.add_argument('--version', type=int, default=0)
 parser.add_argument('--test_inner_steps', type=int, default=3)
 args = parser.parse_args()
-
+args_dict = {"args": vars(args)}
 
 dataset_name = args.dataset_name
 epochs = args.epochs
@@ -48,6 +61,8 @@ RESULTS_DIR = str(Path(__file__).parents[2]) + '/save_models/'
 inr_training_input = torch.load(f"{RESULTS_DIR}/models_imputation_{dataset_name}_{draw_ratio}_{epochs}_{version}.pt",
                                                 map_location=torch.device('cpu'))       
 
+
+print(f"loaded model from {RESULTS_DIR}/models_imputation_{dataset_name}_{draw_ratio}_{epochs}_{version}.pt")
 
 data_cfg = OmegaConf.create(inr_training_input["data"])
 inr_cfg = OmegaConf.create(inr_training_input["cfg_inr"])  
@@ -74,6 +89,26 @@ alpha = 0.01
             
 
 input_dim=1
+
+from omegaconf import OmegaConf; 
+data_cfg = OmegaConf.to_container(data_cfg)
+inr_cfg = OmegaConf.to_container(inr_cfg)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+inr_cfg['device'] = device
+
+
+
+run = wandb.init(
+# Set the project where this run will be logged
+entity='koyuncu',
+project="timeflow_reproduce",
+#TODO ALSO ADD ARGS?
+config = {**flatten_dict(inr_cfg), **flatten_dict(data_cfg), **flatten_dict(args_dict)},
+mode = 'online',
+notes = 'Inference_Imputation',
+# Track hyperparameters and run metadata
+)
+
                 
 inr = ModulatedFourierFeatures(
         input_dim=input_dim,
@@ -143,3 +178,6 @@ print('Draw ratio', draw_ratio)
 print('Mae score on known grid', mae_error_small_train)
 print('Mae score on global grid', error_our_interpo)
 print('Mae score on the missing grid', error_on_unknown_grid)
+
+
+wandb.log({"mae_error_known_train": mae_error_small_train, "mae_error_global": error_our_interpo, "mae_error_missing": error_on_unknown_grid})
