@@ -42,7 +42,8 @@ def flatten_dict(d, parent_key='', sep='/'):
 @hydra.main(config_path="../config/", config_name="experiment_readme.yaml")
 def main(cfg: DictConfig) -> None:
 
-    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     # save path
     RESULTS_DIR = str(Path(__file__).parents[2]) + '/save_models/'
 
@@ -74,9 +75,11 @@ def main(cfg: DictConfig) -> None:
     length_of_interest = cfg.data.length_of_interest
     output_dim = 1
 
+
     #flatten dict of dicts
 
     from omegaconf import OmegaConf; cfg_dict = OmegaConf.to_container(cfg)
+    cfg_dict['device'] = device
     
     run = wandb.init(
     # Set the project where this run will be logged
@@ -116,7 +119,6 @@ def main(cfg: DictConfig) -> None:
     trainset = DatasetSamples(small_data, small_grid, latent_dim, sample_ratio_batch)
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True)
     ntrain = small_data.shape[0]
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('************-------------Device :', device)
     input_dim = 1
 
