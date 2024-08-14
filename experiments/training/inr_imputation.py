@@ -28,6 +28,17 @@ import time
 import wandb
 
 # @hydra.main(config_path="../config/", config_name="config.yaml")
+
+def flatten_dict(d, parent_key='', sep='/'):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
 @hydra.main(config_path="../config/", config_name="experiment_readme.yaml")
 def main(cfg: DictConfig) -> None:
 
@@ -63,11 +74,15 @@ def main(cfg: DictConfig) -> None:
     length_of_interest = cfg.data.length_of_interest
     output_dim = 1
 
+    #flatten dict of dicts
+
+    from omegaconf import OmegaConf; cfg_dict = OmegaConf.to_container(cfg)
+    
     run = wandb.init(
     # Set the project where this run will be logged
     entity='koyuncu',
     project="timeflow_reproduce",
-    config = cfg,
+    config = flatten_dict(cfg_dict),
     mode = 'online'
     # Track hyperparameters and run metadata
     )
