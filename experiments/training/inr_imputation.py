@@ -80,7 +80,7 @@ def main(cfg: DictConfig) -> None:
 
     from omegaconf import OmegaConf; cfg_dict = OmegaConf.to_container(cfg)
     cfg_dict['device'] = device
-    
+
     run = wandb.init(
     # Set the project where this run will be logged
     entity='koyuncu',
@@ -198,7 +198,7 @@ def main(cfg: DictConfig) -> None:
 
         train_samples_loss = fit_train_samples / (ntrain)
         end_time = time.time()
-        wandb.log({"train_loss": train_samples_loss, "epoch": step, 'time_taken': end_time_forward - start_time_forward})
+        wandb.log({"train_loss": train_samples_loss, "epoch": step, 'time_taken': start_time - end_time})
         if step % 100 == 0:
             print('epoch :', step)
             print('loss :', train_samples_loss)
