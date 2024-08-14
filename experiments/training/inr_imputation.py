@@ -25,10 +25,12 @@ from src.utils import (
 import warnings
 warnings.filterwarnings("ignore")
 import time
+import wandb
 
 # @hydra.main(config_path="../config/", config_name="config.yaml")
 @hydra.main(config_path="../config/", config_name="experiment_readme.yaml")
 def main(cfg: DictConfig) -> None:
+
     
     # save path
     RESULTS_DIR = str(Path(__file__).parents[2]) + '/save_models/'
@@ -61,6 +63,14 @@ def main(cfg: DictConfig) -> None:
     length_of_interest = cfg.data.length_of_interest
     output_dim = 1
 
+    run = wandb.init(
+    # Set the project where this run will be logged
+    entity='koyuncu',
+    project="timeflow_reproduce",
+    config = cfg,
+    mode = 'online'
+    # Track hyperparameters and run metadata
+    )
     #OVERWRITE readme
 
     # hidden_dim=256
@@ -160,7 +170,7 @@ def main(cfg: DictConfig) -> None:
             optimizer.zero_grad()
             outputs["loss"].backward(create_graph=False)
             end_time_forward= time.time()
-            print('Time taken for batch :', end_time_forward - start_time_forward)
+            # print('Time taken for batch :', end_time_forward - start_time_forward)
             nn.utils.clip_grad_value_(inr.parameters(), clip_value=1.0)
             optimizer.step()
             loss = outputs["loss"].cpu().detach()
@@ -170,18 +180,18 @@ def main(cfg: DictConfig) -> None:
                 fit_train_samples += loss_samples.item() * n_samples
 
         train_samples_loss = fit_train_samples / (ntrain)
-
+        end_time = time.time()
+        wandb.log({"train_loss": train_samples_loss, "epoch": step, 'time_taken': end_time_forward - start_time_forward})
         if step % 100 == 0:
             print('epoch :', step)
             print('loss :', train_samples_loss)
 
         scheduler.step(train_samples_loss)
-        end_time = time.time()
-        print('Time taken for epoch :', end_time - start_time)
+        # print('Time taken for epoch :', end_time - start_time)
 
         if train_samples_loss < best_loss:
             best_loss = train_samples_loss
-
+            print('Saving model at epoch :', step)
             torch.save(
                 {
                     "data": cfg.data,
