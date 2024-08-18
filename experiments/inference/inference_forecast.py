@@ -22,6 +22,17 @@ from src.utils import (
     fixed_sampling_series_forecasting,
 )
 
+import wandb
+
+def flatten_dict(d, parent_key='', sep='/'):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset_name', type=str, default='Electricity')
@@ -30,7 +41,7 @@ parser.add_argument('--horizon', type=int, default=96)
 parser.add_argument('--version', type=int, default=0)
 parser.add_argument('--test_inner_steps', type=int, default=3)
 args = parser.parse_args()
-
+args_dict = {"args": vars(args)}
 
 dataset_name = args.dataset_name
 epochs = args.epochs
@@ -46,6 +57,8 @@ alpha = 0.01
 
 inr_training_input = torch.load(f"{RESULTS_DIR}/models_forecasting_{dataset_name}_{horizon}_{epochs}_{version}.pt",
                                 map_location=torch.device('cpu'))                       
+
+print(f"loaded model from {RESULTS_DIR}/models_forecasting_{dataset_name}_{horizon}_{epochs}_{version}.pt")
 
 
 data_cfg = OmegaConf.create(inr_training_input["data"])
@@ -70,6 +83,25 @@ loss_type = "mse"
                 
 
 input_dim=1
+
+from omegaconf import OmegaConf; 
+data_cfg = OmegaConf.to_container(data_cfg)
+inr_cfg = OmegaConf.to_container(inr_cfg)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+inr_cfg['device'] = device
+
+
+
+run = wandb.init(
+# Set the project where this run will be logged
+entity='koyuncu',
+project="timeflow_reproduce",
+#TODO ALSO ADD ARGS?
+config = {**flatten_dict(inr_cfg), **flatten_dict(data_cfg), **flatten_dict(args_dict)},
+mode = 'online',
+notes = 'Inference_Forecasting',
+# Track hyperparameters and run metadata
+)                      
                         
 inr = ModulatedFourierFeatures(
         input_dim=input_dim,
@@ -91,7 +123,6 @@ inr = ModulatedFourierFeatures(
 
 inr.load_state_dict(inr_training_input["inr"])
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 inr = inr.to(device)
 inr.eval()
@@ -156,3 +187,5 @@ print('Version', version)
 print('Horizon', horizon)
 print('Mae score on passed', mae_loss_fit)
 print('Mae score forecasting', mae_error_forecast)
+
+wandb.log({"mae_error_known_train": mae_loss_fit, "mae_error_missing": mae_error_forecast})

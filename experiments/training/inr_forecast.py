@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+print(sys.path)
+print(__file__)
 sys.path.append(str(Path(__file__).parents[1]))
 sys.path.append(str(Path(__file__).parents[2]))
 
@@ -22,9 +24,24 @@ from src.utils import (
 
 import warnings
 warnings.filterwarnings("ignore")
+import time
+import wandb
 
-@hydra.main(config_path="../config/", config_name="config.yaml")
+def flatten_dict(d, parent_key='', sep='/'):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+@hydra.main(config_path="../config/", config_name="experiment_readme_forecasting.yaml")
 def main(cfg: DictConfig) -> None:
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     
     # save path
     RESULTS_DIR = str(Path(__file__).parents[2]) + '/save_models/'
@@ -54,6 +71,20 @@ def main(cfg: DictConfig) -> None:
     passed_ratio = cfg.inr.passed_ratio
     horizon_ratio = cfg.inr.horizon_ratio
 
+    from omegaconf import OmegaConf; cfg_dict = OmegaConf.to_container(cfg)
+    cfg_dict['device'] = device
+
+
+    run = wandb.init(
+    # Set the project where this run will be logged
+    entity='koyuncu',   
+    project="timeflow_reproduce",
+    config = flatten_dict(cfg_dict),
+    mode = 'online',
+    notes = 'forecasting'
+    # Track hyperparameters and run metadata
+    )
+
 
     series_passed, _, small_grid = fixed_sampling_series_forecasting(
                                       dataset_name, 
@@ -62,6 +93,9 @@ def main(cfg: DictConfig) -> None:
                                       setting='classic',
                                       train_or_test='train'
                                       )
+    
+    #check if small grid and coords are aligning
+    print(series_passed.shape, small_grid.shape)
 
     trainset = DatasetSamplesForecasting(series_passed, 
                                          small_grid, 
@@ -74,7 +108,7 @@ def main(cfg: DictConfig) -> None:
 
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True)
     ntrain = series_passed.shape[0]
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print('************-------------Device :', device)
     input_dim = 1
 
     inr = ModulatedFourierFeatures(
@@ -111,7 +145,7 @@ def main(cfg: DictConfig) -> None:
     best_loss = np.inf
 
     for step in range(epochs):
-
+        start_time = time.time()
         fit_train_samples = 0
 
         for substep, (series_p, series_h, modulations, coords_p, coords_h, idx) in enumerate(train_loader):
@@ -156,6 +190,8 @@ def main(cfg: DictConfig) -> None:
                 fit_train_samples += loss_samples.item() * n_samples
 
         train_samples_loss = fit_train_samples / (ntrain)
+        end_time = time.time()
+        wandb.log({"train_loss": train_samples_loss, "epoch": step, 'time_taken': end_time-start_time})
 
         if step % 100 == 0:
             print('epoch :', step)
